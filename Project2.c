@@ -37,7 +37,7 @@
 
 
 int cpt=0;
-int mutex1=0,mutex=1,nvide=3;
+int mutex1=1,mutex=1,nvide=3;
 int semid,msqid,Trequetes;
 char *shmaddr ;
 int* Fliber;
@@ -113,7 +113,7 @@ int Freponse ;
     struct alloc Talloc[5];
     struct dem Tdem[5];
 
-    Dispo dispo={20,20,20};
+    Dispo dispo={10,10,10};
 
 
 
@@ -140,9 +140,7 @@ void  Creer_semaphores(){
     // printf("cet ensemble est identifie par la cle unique : %d\n",ftok(path,(key_t)CLE)) ;
     // -------------------------------------------------------------------------------------Initialisation 
     int sem_value=0;
-    
-    // for (int i = 0; i < nsems; ++i) {
-    // }
+
         if (semctl(semid, 0, SETVAL, nvide) == -1) {
             perror("semctl ");
             exit(EXIT_FAILURE);
@@ -424,23 +422,23 @@ void Prelever(Req * req2){
 
 
 
-void p1(){
-    P(2);
-    printf("hello i'm one \n");
-    exit(0);
-}
-void p2(){
+// void p1(){
+//     P(2);
+//     printf("hello i'm one \n");
+//     exit(0);
+// }
+// void p2(){
 
-    sleep(2);
-    printf("hello i'm two \n");
-    V(2);
-    exit(0);
-}
+//     sleep(2);
+//     printf("hello i'm two \n");
+//     V(2);
+//     exit(0);
+// }
 
 int satisfy(Req *req){
 
     struct victim Tvictim[4];
-    int indx ,nb=0;
+    int indx ,nb=0,k=0;
     bool satisfied=0 ;
     Dispo copyDispo = dispo;
 
@@ -469,7 +467,8 @@ int satisfy(Req *req){
 
 
 
-    while(satisfied==0 && indx >nb){
+    while(satisfied==0 && k < nb ){
+        indx=Tvictim[k].index;
         int besoinN1,besoinN2,besoinN3;
         besoinN1=copyDispo.N1-req->nb1;
         besoinN2=copyDispo.N2-req->nb2;
@@ -477,11 +476,10 @@ int satisfy(Req *req){
         if(Talloc[indx].alloc1+besoinN1 >=0 &&Talloc[indx].alloc2+besoinN2 >=0 &&Talloc[indx].alloc3+besoinN3 >=0){
             int newdem1,newdem2,newdem3;
             int newdispo1,newdispo2,newdispo3;
-//
+
             newdem1=(besoinN1 >= 0) ? 0 : Talloc[indx].alloc1+besoinN1;
             newdem2=(besoinN2 >= 0) ? 0 : Talloc[indx].alloc2+besoinN2;
             newdem3=(besoinN3>= 0) ? 0 : Talloc[indx].alloc3+besoinN3;
-            // Tinfos[indx].temp_att=0;/////////??????????????????????????????
 
             Tdem[indx].dem1= Tdem[indx].dem1 +newdem1  ;
             Tdem[indx].dem2=Tdem[indx].dem2 + newdem2 ;
@@ -503,19 +501,22 @@ int satisfy(Req *req){
             satisfied =1 ;
         }else{
             int SN1,SN2,SN3;
+            //
             SN1=(Talloc[indx].alloc1+besoinN1 < 0) ? Talloc[indx].alloc1 : Talloc[indx].alloc1+besoinN1;/////////??????????????????????????????
             SN2=(Talloc[indx].alloc2+besoinN2 < 0) ? Talloc[indx].alloc2 : Talloc[indx].alloc2+besoinN2;/////////??????????????????????????????
             SN3=(Talloc[indx].alloc3+besoinN3 < 0) ? Talloc[indx].alloc3 : Talloc[indx].alloc3+besoinN3;/////////??????????????????????????????
 
+            //update despo copy 
             copyDispo.N1=copyDispo.N1+SN1;
             copyDispo.N2=copyDispo.N2+SN2;
             copyDispo.N3=copyDispo.N3+SN3;
 
+            //update table alloc de la processus victim 
             Talloc[indx].alloc1=(Talloc[indx].alloc1+besoinN1 < 0) ? 0 : Talloc[indx].alloc1+besoinN1;
             Talloc[indx].alloc2=(Talloc[indx].alloc2+besoinN2 < 0) ? 0 : Talloc[indx].alloc2+besoinN2;
             Talloc[indx].alloc3=(Talloc[indx].alloc3+besoinN3 < 0) ? 0 : Talloc[indx].alloc3+besoinN3;
 
-            indx=indx+1;
+            k=k+1;
         }
 
     }
@@ -531,9 +532,10 @@ int satisfy(Req *req){
 
 void satisfy_others(){
     struct victim Tbloqui[4];
-    int indx ,nb=0;
+    int indx ,nb=0,k=0;
+    bool satisfied_others=1 ;
 
-    //construier le table victim 
+    //construier le table bloques 
     for(int i=1;i<=5;i++){
         if(Tinfos[i].etate==1 ){
             Tbloqui[nb].index=i;
@@ -541,10 +543,10 @@ void satisfy_others(){
         }
     };
 
-     //trier le table victime 
+     //trier le table bloques 
     for (int i = 0; i < nb-1; i++) {
         for (int j = 0; j < nb - i - 1; j++) {
-            if (Tbloqui[j].temp_att > Tbloqui[j + 1].temp_att) {
+            if (Tbloqui[j].temp_att < Tbloqui[j + 1].temp_att) {
                 struct victim temp = Tbloqui[j];
                 Tbloqui[j] = Tbloqui[j + 1];
                 Tbloqui[j + 1] = temp;
@@ -552,28 +554,60 @@ void satisfy_others(){
         }
     };
 
-    while(){
-        
+    while(satisfied_others && k < nb){
+        indx=Tbloqui[k].index;
+        if(dispo.N1-Tdem[indx].dem1 >= 0 && dispo.N2-Tdem[indx].dem2 >= 0 && dispo.N3-Tdem[indx].dem3 >= 0 ){
+            //update letate  de proccessue
+            Tinfos[indx].etate=0;
+            Tinfos[indx].temp_att=0;
+
+            msg_R message3;
+            Rep rep={indx,1};
+            message3.data=rep;
+            message3.msg_type = MESSAGE_TYPE;
+            Rsend(Freponse,message3);
+
+            
+            //update table d'allocation 
+            Talloc[indx].alloc1=Talloc[indx].alloc1+Tdem[indx].dem1;
+            Talloc[indx].alloc2=Talloc[indx].alloc2+Tdem[indx].dem2;
+            Talloc[indx].alloc3=Talloc[indx].alloc3+Tdem[indx].dem3;
+
+            //update despo
+            dispo.N1=dispo.N1-Tdem[indx].dem1;
+            dispo.N2=dispo.N2-Tdem[indx].dem2;
+            dispo.N3=dispo.N3-Tdem[indx].dem3;
+
+            //update la table de dommande
+            Tdem[indx].dem1=0;
+            Tdem[indx].dem2=0;
+            Tdem[indx].dem3=0;
+
+            k=k+1;
+        }else{
+            satisfied_others=0;
+        }
     }
 }
 
 void gerant(){
-      int nbproc=5,type;
-
-    // initialiser la rable Tinfos
+    int nbproc=5,type;
+    msg_L message;
+    Req requests;
+    // initialiser la table Tinfos
     for(int i=0;i<5;i++){
         Tinfos[i].etate=0;
         Tinfos[i].temp_att=0;
     }
 
-    // initialiser la rable Talloc
+    // initialiser la table Talloc
     for(int i=0;i<5;i++){
         Talloc[i].alloc1=0;
         Talloc[i].alloc2=0;
         Talloc[i].alloc3=0;
     }
 
-    // initialiser la rable Tdem
+    // initialiser la table Tdem
     for(int i=0;i<5;i++){
         Tdem[i].dem1=0;
         Tdem[i].dem2=0;
@@ -581,7 +615,6 @@ void gerant(){
     }
 
     while(nbproc!=0){
-        Req requests;
         int trouve=0;
         while(trouve==0){
             P(2);
@@ -590,62 +623,123 @@ void gerant(){
                 V(2);
                 Prelever(&requests);
                 type=2;
+                printf("gerant trouve dans le tempon un requests de processes n %d",requests.id);
                 P(2);
                 cpt=-1;
+                // cpt-=1;
                 V(2);
                 V(0);
             }
             else{
                 V(2);
                 // charche dans les files des massage  
+                    for (int i = 1; i <= 5; i++) {
+                        if (msgrcv(Fliber[i], &message, sizeof(Lib), MESSAGE_TYPE, IPC_NOWAIT) == -1) {
+                            if (errno == ENOMSG) {
+                                // printf("Aucun message disponible pour la file d attente %d\n", Fliber[i]);
+                            } else {
+                                perror("msgrcv");
+                                exit(EXIT_FAILURE);
+                            }
+                        } else {
+                            printf("Message reçu de la file d attente %d: ", Fliber[i]);
+                            if(message.data.lib1 ==0 && message.data.lib2==0 && message.data.lib3==0){
+                                type=4;
+                            }else{
+                                type=3; 
+                            }
+                            trouve=1;
+                            break;
+                        }
+                    }
+                }
 
                 
             }
-        }
+        
         switch (type){
             case 2:
                 if(satisfy(&requests)){
-
+                    //update table d'allocation 
                     Talloc[requests.id].alloc1=Talloc[requests.id].alloc1+requests.nb1;
                     Talloc[requests.id].alloc2=Talloc[requests.id].alloc2+requests.nb2;
                     Talloc[requests.id].alloc3=Talloc[requests.id].alloc3+requests.nb3;
+
+                    //update despo
+
+                    dispo.N1=dispo.N1-requests.nb1;
+                    dispo.N2=dispo.N2-requests.nb2;
+                    dispo.N3=dispo.N3-requests.nb3;
+
+                    //envoyer une reponse au processus
+                    msg_R message3;
                     Rep rep={requests.id,1};
-                    Rsend(Freponse,rep);
+                    message3.data=rep;
+                    message3.msg_type = MESSAGE_TYPE;
+                    Rsend(Freponse,message3);
                 }else{
+                    //update table Tinfos 
                     Tinfos[requests.id].etate=1 ;
                     Tinfos[requests.id].temp_att=0; //temp_att =0
-
+                    
+                    //update table Tdem 
                     Tdem[requests.id].dem1=requests.nb1;
                     Tdem[requests.id].dem2=requests.nb2;
                     Tdem[requests.id].dem3=requests.nb3;
-                    Rep rep={requests.id,0};
-                    Rsend(Freponse,rep);
+
+                    //envoyer une reponse au processus
+                    msg_R message3;
+                    Rep rep={requests.id,0};            
+                    message3.data=rep;
+                    message3.msg_type = MESSAGE_TYPE;
+                    Rsend(Freponse,message3);
+
                 };
     
                 break;
             case 3:
+                // update despo 
+                dispo.N1=dispo.N1+message.data.lib1;
+                dispo.N2=dispo.N2+message.data.lib2;
+                dispo.N3=dispo.N3+message.data.lib3;
+
+                //update table alloc 
+                Talloc[message.data.id_p].alloc1=Talloc[message.data.id_p].alloc1-message.data.lib1;
+                Talloc[message.data.id_p].alloc2=Talloc[message.data.id_p].alloc2-message.data.lib2;
+                Talloc[message.data.id_p].alloc3=Talloc[message.data.id_p].alloc3-message.data.lib3;
                 satisfy_others();
                 break;
             case 4:
+                // update despo 
+                dispo.N1=dispo.N1+Talloc[message.data.id_p].alloc1;
+                dispo.N2=dispo.N2+Talloc[message.data.id_p].alloc2;
+                dispo.N3=dispo.N3+Talloc[message.data.id_p].alloc3;
+
+                //update table alloc 
+                Talloc[message.data.id_p].alloc1=0;
+                Talloc[message.data.id_p].alloc2=0;
+                Talloc[message.data.id_p].alloc3=0;
                 nbproc-=nbproc;
+                satisfy_others();
                 break;
 
     };
-
+    // upadte le temp d attente
+    for(int i=0 ; i<=5 ;i++){
+        if( Tinfos[i].etate=1){
+            Tinfos[i].temp_att+1;
+        }
+    }
     }
     exit(0);
 }
 
-// Bon 3endek satisfy tmedlek yes or no  ychouf m3a dispo la qder ymedlou be3dha yroh le 1er processus bloqué la qder la ma qderch yroh le 2ème bloqué hakda 
-// hetta win il sera satisfait wella yekhlasso les processus bloqué w tdir return no w ombe3d il bloque
-// Hna f satisfy tekhder b le dernier bloqué machi le premier ombe3d l'avant dernier w hiya rayha 
 
-// Satisfy others tdirha f la fin te3 le processus wella après chaque libération hadi troh tmed les ressources pour le premier bloqué li howa le prioritaire 
-// la qdert il sera débloquer w tmed le 2ème la ma qdertch tehbes w ma tmedch pour le 2ème
 
 void calcule(int i){
     FILE *f;
     struct instruction myStruct;
+    msg_L message2;
 
  
     switch (i){
@@ -658,23 +752,26 @@ void calcule(int i){
     case 3:
         f = fopen("Fichier3.txt", "r");
         break;
-    default:
+    case 4:
         f = fopen("Fichier4.txt", "r");
+        break;
+    case 5:
+        f = fopen("Fichier5.txt", "r");
         break;
     };
 
     do{ 
         fscanf(f, "%d %d %d %d ", &myStruct.type, &myStruct.nb1 ,  &myStruct.nb2 , &myStruct.nb3);
+            
         switch (myStruct.type){
             case 1:
                 sleep(2);
+                printf("le processus n: %d faire un instruction normal \n",i);
                 break;
             case 2:
                 Req requests ={i ,myStruct.nb1 ,myStruct.nb2, myStruct.nb3 };  
                 msg_R message;
-
                 message.msg_type = MESSAGE_TYPE;
-
                 P(0);
                 P(1);
                 Deposer(&requests);
@@ -682,24 +779,27 @@ void calcule(int i){
                 P(2);
                 cpt+=1;
                 V(2);
+                printf("le processus n: %d demmande de ressources, attendre la reponse \n ",i);
                 Rreciver(Freponse,message);
                 if(message.data.trep==0){
-                    Rreciver(Freponse,message);
+                    printf("le processus n: %d  le processus est bloqué. \n ",i);
+                    Rreciver(Freponse,message); //bloque
+                    printf("le processus n: %d  le processus est debloqué. \n ",i);
                 }
-
-                // printf("Read struct: nb1=%d, nb2=%d, nb3=%d, type=%d\n", myStruct.nb1, myStruct.nb2, myStruct.nb3, myStruct.type);
                 break;
             case 3:
-                msg_L message2;
-                Lib lib={i, myStruct.nb1, myStruct.nb2, myStruct.nb3};
-                message2.data=lib;
+                Lib lib1={i, myStruct.nb1, myStruct.nb2, myStruct.nb3};
+                message2.data=lib1;
                 message2.msg_type = MESSAGE_TYPE;
-
-                Lsend(Fliber[1],message2);
-                // printf("Read struct: nb1=%d, nb2=%d, nb3=%d, type=%d\n", myStruct.nb1, myStruct.nb2, myStruct.nb3, myStruct.type);
+                printf("le processus n: %d liberer de ressources \n",i);
+                Lsend(Fliber[i],message2);
                 break;
-            default:
-                // printf("Read struct: nb1=%d, nb2=%d, nb3=%d, type=%d\n", myStruct.nb1, myStruct.nb2, myStruct.nb3, myStruct.type);
+            case 4:
+                Lib lib2={i, 0,0,0};
+                message2.data=lib2;
+                message2.msg_type = MESSAGE_TYPE;
+                printf("le processus n: %d est terminé .\n",i);
+                Lsend(Fliber[i],message2);
                 break;
         };
     }   while(myStruct.type!=4);
@@ -714,49 +814,26 @@ int main(){
     
     Creer_et_attacher_tompon();
     Creer_semaphores();
-
-
-  Creer_6_Fmsgs();
-
-
-    // printf("id=%d nb1=%d nb2=%d nb3=%d\n", req2.id, req2.nb1, req2.nb2, req2.nb3);
-    // Deposer(&req);
-    // Prelever(&req2);
-    // printf("id=%d nb1=%d nb2=%d nb3=%d\n", req2.id, req2.nb1, req2.nb2, req2.nb3);
+    Creer_6_Fmsgs();
 
 
 
-    // message.msg_type = MESSAGE_TYPE;
-    // message.data.id_p = 1;
-    // message.data.lib1 = 10;
-    // message.data.lib2 = 20;
-    // message.data.lib3 = 30;
-    // // strcpy(message.msg_text, "Hello, this is a message!");
-    // send(filemsgs[1],message);
-    // reciver(filemsgs[1],message);
 
     int id;
 
-    // id=fork();
-    // if(id==0){
-    //     p1();
-    //     }
-    // else{
-    //     p2();
-    //     }
-
     
-    // id=fork();
-    // if(id==0){
-    //     gerant();
-    //     };
-    // for(int i=1;i<=5;i++){
-    //     id=fork();
-    //     if(id==0){calcule(i);}
-    // }
-    // for(int i;i<=6 ; i++){
-    //     wait(0);
-    // }
+    id=fork();
+    if(id==0){
+
+        gerant();
+        };
+    for(int i=1;i<=5;i++){
+        id=fork();
+        if(id==0){calcule(i);}
+    }
+    for(int i;i<=6 ; i++){
+        wait(0);
+    }
 
     Detruite_semaphores();
     Detruite_tompon();
@@ -768,14 +845,6 @@ int main(){
 
 
 
-
-///fl 2 : domande -> satify + 
-//fl 3 : libire -> satisfy_athers
-
-
-
-// qst 1-> memcpy ?? 
-// qst 2-> <time.h> ?? 
 
 
 
